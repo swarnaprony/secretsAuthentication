@@ -76,14 +76,11 @@ app.get("/auth/google",
     passport.authenticate("google", {scope: ["profile"]})
 );
 
-app.get("/auth/google/secrets", function(req, res) {
+app.get( '/auth/google/secrets',
     passport.authenticate( 'google', {
-    successRedirect: '/secrets',
-    failureRedirect: '/login',
-    scope: ["email", "profile"]
-})
-}
-);
+        successRedirect: '/secrets',
+        failureRedirect: '/login'
+}));
 
 app.get("/login", function(req, res){
     res.render("login");
