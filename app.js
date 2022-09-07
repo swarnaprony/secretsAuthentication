@@ -9,6 +9,7 @@ const passport = require("passport");
 const passportLocalMongoose = require("passport-local-mongoose");
 const GoogleStrategy = require( 'passport-google-oauth2').Strategy;
 const findOrCreate = require('mongoose-findorcreate');
+const FacebookStrategy = require("passport-facebook");
 
 const app = express();
 
@@ -34,7 +35,8 @@ mongoose.connect("mongodb://localhost:27017/userDB", {useNewUrlParser: true});
 const userSchema = new mongoose.Schema({
     email: String,
     password: String,
-    googleId: String
+    googleId: String,
+    secret: String
 });
 
 userSchema.plugin(passportLocalMongoose);
@@ -63,7 +65,19 @@ passport.use(new GoogleStrategy({
       return done(err, user);
     });
   }
-));  
+));
+
+passport.use(new FacebookStrategy({
+    clientID: process.env.FACEBOOK_APP_ID,
+    clientSecret: process.env.FACEBOOK_APP_SECRET,
+    callbackURL: "http://localhost:4000/auth/facebook/secrets"
+  },
+  function(accessToken, refreshToken, profile, cb) {
+    User.findOrCreate({ facebookId: profile.id }, function (err, user) {
+      return cb(err, user);
+    });
+  }
+));
 
 
 app.get("/", function(req, res){
@@ -80,6 +94,18 @@ app.get( '/auth/google/secrets',
         failureRedirect: '/login'
 }));
 
+app.get('/auth/facebook',
+  passport.authenticate('facebook'));
+
+app.get('/auth/facebook/secrets',
+  passport.authenticate('facebook', { failureRedirect: '/login' }),
+  function(req, res) {
+    // Successful authentication, redirect home.
+    res.redirect('/secrets');
+  });
+
+
+
 app.get("/login", function(req, res){
     res.render("login");
 });
@@ -95,6 +121,15 @@ app.get("/secrets", function(req, res){
         res.redirect("/login");
     }
 });
+
+app.get("/submit", function(req, res){
+    if (req.isAuthenticated()){
+        res.render("submit");
+    } else {
+        res.redirect("/login");
+    }
+})
+
 
 app.get('/logout', function(req, res, next) {
     req.logout(function(err) {
@@ -135,6 +170,23 @@ app.post("/login", function(req, res){
 
 });
 
+app.post("/submit", function(req, res){
+    console.log(req.user);
+    const submittedSecret = req.body.secret;
+
+    User.findById(req.user._id, function(err, foundUser){
+        if(err) {
+            console.log(err);
+        } else {
+            if (foundUser) {
+                foundUser.secret = submittedSecret;
+                foundUser.save(function(){
+                    res.redirect("/secrets");
+                })
+            }
+        }
+    });
+});
 
 app.listen(4000, function(){
     console.log("Successfully started on 4000")
