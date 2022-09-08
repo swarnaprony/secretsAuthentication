@@ -13,8 +13,6 @@ const FacebookStrategy = require("passport-facebook");
 
 const app = express();
 
-console.log(process.env.API_KEY);
-
 app.use(express.static("public"));
 app.set('view engine', 'ejs');
 app.use(bodyParser.urlencoded({
@@ -70,7 +68,8 @@ passport.use(new GoogleStrategy({
 passport.use(new FacebookStrategy({
     clientID: process.env.FACEBOOK_APP_ID,
     clientSecret: process.env.FACEBOOK_APP_SECRET,
-    callbackURL: "http://localhost:4000/auth/facebook/secrets"
+    callbackURL: "http://localhost:4000/auth/facebook/secrets",
+    profileFields: ['email']
   },
   function(accessToken, refreshToken, profile, cb) {
     User.findOrCreate({ facebookId: profile.id }, function (err, user) {
@@ -95,15 +94,14 @@ app.get( '/auth/google/secrets',
 }));
 
 app.get('/auth/facebook',
-  passport.authenticate('facebook'));
+    passport.authenticate('facebook'));
 
 app.get('/auth/facebook/secrets',
-  passport.authenticate('facebook', { failureRedirect: '/login' }),
-  function(req, res) {
+    passport.authenticate('facebook', { failureRedirect: '/login' }),
+    function(req, res) {
     // Successful authentication, redirect home.
-    res.redirect('/secrets');
-  });
-
+     res.redirect('/secrets');
+    });
 
 
 app.get("/login", function(req, res){
@@ -115,11 +113,15 @@ app.get("/register", function(req, res){
 });
 
 app.get("/secrets", function(req, res){
-    if (req.isAuthenticated()){
-        res.render("secrets");
-    } else {
-        res.redirect("/login");
-    }
+    User.find({"secret": {$ne: null}}, function(err, foundUsers){
+        if (err) {
+            console.log(err);
+        } else {
+            if(foundUsers) {
+                res.render("secrets", {usersWithSecrets: foundUsers});
+            }
+        }
+    })
 });
 
 app.get("/submit", function(req, res){
@@ -165,13 +167,12 @@ app.post("/login", function(req, res){
             passport.authenticate("local")(req, res, function(){
                 res.redirect("/secrets");
             });
-        }
+        }4000
     });
 
 });
 
 app.post("/submit", function(req, res){
-    console.log(req.user);
     const submittedSecret = req.body.secret;
 
     User.findById(req.user._id, function(err, foundUser){
@@ -187,6 +188,13 @@ app.post("/submit", function(req, res){
         }
     });
 });
+
+app.post('/logout', function(req, res, next){
+    req.logout(function(err) {
+      if (err) { return next(err); }
+      res.redirect('/');
+    });
+  });
 
 app.listen(4000, function(){
     console.log("Successfully started on 4000")
